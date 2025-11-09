@@ -1,12 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>    // for mkstemp, unlink
+#include <unistd.h>    // mkstemp, unlink
+#include <fcntl.h>     // fdopen
 #include "../include/csv_parser.h"
 
 // === Portable temp CSV creator ===
 char* create_temp_csv(const char *data, char *template) {
-    // template must be like "/tmp/csvtest.XXXXXX"
     strcpy(template + strlen(template) - 6, "XXXXXX");
     int fd = mkstemp(template);
     if (fd == -1) return NULL;
@@ -50,7 +50,7 @@ void test_basic_parsing() {
 
     CSVRow *row;
     int rows = 0;
-    while ((row = csv_parser_next parser)) != NULL) {
+    while ((row = csv_parser_next(parser)) != NULL) {
         rows++;
         if (rows == 1 && strcmp(row->fields[0], "name") != 0) {
             printf("FAIL: header[0] != name\n");
