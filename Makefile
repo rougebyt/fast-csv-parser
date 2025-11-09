@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -O3 -Wall -Wextra -std=c11 -Iinclude
+CFLAGS = -O3 -Wall -Wextra -std=c11 -Iinclude -D_XOPEN_SOURCE=500
 TARGET = csvparse
 TEST_TARGET = test_parser
 SRC = src/main.c src/csv_parser.c
@@ -21,12 +21,9 @@ test: $(TEST_TARGET)
 clean:
 	rm -f $(TARGET) $(TEST_TARGET) $(OBJ)
 	rm -f /tmp/csvtest.*
+
 bench: $(TARGET)
-	@echo "=== C Parser ==="
-	@time ./$(TARGET) examples/sample.csv > /dev/null
-	@echo "=== Python csv ==="
-	@time python3 examples/benchmark.py > /dev/null
-
-
+	@echo "=== Running Full Benchmark ==="
+	@cd examples && python3 benchmark.py
 
 .PHONY: all clean test bench
