@@ -46,7 +46,7 @@ Parsing large CSV files in Python is **slow** due to interpreter overhead.
 | Custom delimiter & quote char | Done |
 | CLI + embeddable library | Done |
 | Docker build | Done |
-| GitHub Actions CI | Done |
+| GitHub Actions CI | Under Development |
 | Unit tests | Done |
 
 ---
@@ -197,7 +197,5 @@ MIT © Moibon Dereje
   <br><br>
   <i>Built with performance in mind.</i>
 </p>
-```
 
----
 
