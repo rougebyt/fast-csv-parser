@@ -1,0 +1,4 @@
+csvparse
+*.o
+*.out
+__pycache__
