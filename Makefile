@@ -20,11 +20,13 @@ test: $(TEST_TARGET)
 
 clean:
 	rm -f $(TARGET) $(TEST_TARGET) $(OBJ)
-
+	rm -f /tmp/csvtest.*
 bench: $(TARGET)
 	@echo "=== C Parser ==="
 	@time ./$(TARGET) examples/sample.csv > /dev/null
 	@echo "=== Python csv ==="
 	@time python3 examples/benchmark.py > /dev/null
+
+
 
 .PHONY: all clean test bench
