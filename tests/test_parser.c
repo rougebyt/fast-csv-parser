@@ -5,14 +5,13 @@
 #include <fcntl.h>
 #include "../include/csv_parser.h"
 
-// === SAFE temp file creator ===
+// === Portable temp CSV creator ===
 char* create_temp_csv(const char *data, char *template) {
-    // template must be at least 13 chars: "/tmp/csv.XXXXXX"
     size_t len = strlen(template);
-    if (len < 12) return NULL;
+    if (len < 6) return NULL;
 
-    // Replace last 6 chars with "XXXXXX"
-    strncpy(template + len - 6, "XXXXXX", 6);
+    // SAFELY overwrite last 6 chars with "XXXXXX"
+    memcpy(template + len - 6, "XXXXXX", 6);
     template[len] = '\0';  // Ensure null termination
 
     int fd = mkstemp(template);
@@ -25,7 +24,8 @@ char* create_temp_csv(const char *data, char *template) {
         return NULL;
     }
 
-    if (fwrite(data, 1, strlen(data), f) != strlen(data)) {
+    size_t data_len = strlen(data);
+    if (fwrite(data, 1, data_len, f) != data_len) {
         fclose(f);
         unlink(template);
         return NULL;
@@ -58,6 +58,12 @@ void test_basic_parsing() {
     int rows = 0;
     while ((row = csv_parser_next(parser)) != NULL) {
         rows++;
+        if (rows == 1 && strcmp(row->fields[0], "name") != 0) {
+            printf("FAIL: header[0] != name\n");
+            csv_parser_free(parser);
+            unlink(path);
+            exit(1);
+        }
     }
 
     csv_parser_free(parser);
@@ -92,7 +98,7 @@ void test_quoted_fields() {
 
     CSVRow *row = csv_parser_next(parser);
     if (!row || strcmp(row->fields[1], "hello, world") != 0) {
-        printf("FAIL: quoted comma\n");
+        printf("FAIL: quoted comma not preserved\n");
         csv_parser_free(parser);
         unlink(path);
         exit(1);
@@ -100,7 +106,7 @@ void test_quoted_fields() {
 
     row = csv_parser_next(parser);
     if (!row || strcmp(row->fields[1], "\"quoted\"") != 0) {
-        printf("FAIL: escaped quotes\n");
+        printf("FAIL: escaped quotes not preserved\n");
         csv_parser_free(parser);
         unlink(path);
         exit(1);
