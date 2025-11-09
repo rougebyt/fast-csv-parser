@@ -14,7 +14,6 @@ jobs:
       - name: Build & Run Tests
         run: |
           make test
-          echo "All tests passed!"
 
       - name: Run Example
         run: |
