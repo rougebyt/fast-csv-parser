@@ -19,6 +19,9 @@ static int ensure_capacity(CSVRow *row, int needed) {
 }
 
 static void row_reset(CSVRow *row) {
+    for (int i = 0; i < row->field_count; i++) {
+        free(row->fields[i]);
+    }
     row->field_count = 0;
 }
 
@@ -29,16 +32,14 @@ CSVParser* csv_parser_new(const char *filename, char delimiter, char quote) {
     struct stat st;
     if (fstat(fd, &st) < 0) { close(fd); return NULL; }
 
-    // mmap for reading
     char *mapped = mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
     close(fd);
     if (mapped == MAP_FAILED) return NULL;
 
-    // Allocate writable copy
     char *data = malloc(st.st_size + 1);
     if (!data) { munmap(mapped, st.st_size); return NULL; }
     memcpy(data, mapped, st.st_size);
-    data[st.st_size] = '\0';  // Ensure null-terminated
+    data[st.st_size] = '\0';
     munmap(mapped, st.st_size);
 
     CSVParser *p = malloc(sizeof(CSVParser));
@@ -49,17 +50,18 @@ CSVParser* csv_parser_new(const char *filename, char delimiter, char quote) {
     p->pos = 0;
     p->delimiter = delimiter;
     p->quote = quote;
-    p->current_row.fields = NULL;
+    p->current_row.fields = malloc(16 * sizeof(char*));
     p->current_row.field_count = 0;
-    p->current_row.capacity = 0;
+    p->current_row.capacity = 16;
 
     return p;
 }
 
 void csv_parser_free(CSVParser *parser) {
     if (!parser) return;
-    if (parser->data) free(parser->data);  // ← free malloc'd copy
-    if (parser->current_row.fields) free(parser->current_row.fields);
+    row_reset(&parser->current_row);
+    free(parser->current_row.fields);
+    free(parser->data);
     free(parser);
 }
 
@@ -67,60 +69,69 @@ CSVRow* csv_parser_next(CSVParser *parser) {
     if (parser->pos >= parser->size) return NULL;
 
     row_reset(&parser->current_row);
-    char *p = parser->data + parser->pos;
-    char *end = parser->data + parser->size;
-    char *field_start = p;
-    int in_quotes = 0;
 
-    while (p < end) {
-        char c = *p;
+    size_t pos = parser->pos;
 
-        if (c == parser->quote) {
-            if (!in_quotes) {
-                in_quotes = 1;
-                field_start = p + 1;
-            } else {
-                if (p + 1 < end && *(p + 1) == parser->quote) {
-                    p++;  // skip second " in ""
+    while (pos < parser->size) {
+        if (!ensure_capacity(&parser->current_row, parser->current_row.field_count + 1)) return NULL;
+
+        int is_quoted = 0;
+        if (parser->data[pos] == parser->quote) {
+            is_quoted = 1;
+            pos++;
+        }
+
+        char *field = malloc(parser->size - pos + 1);
+        if (!field) return NULL;
+
+        int fpos = 0;
+
+        while (pos < parser->size) {
+            char c = parser->data[pos];
+
+            if (is_quoted) {
+                if (c == parser->quote) {
+                    if (pos + 1 < parser->size && parser->data[pos + 1] == parser->quote) {
+                        field[fpos++] = parser->quote;
+                        pos++;
+                    } else {
+                        pos++;
+                        break;
+                    }
                 } else {
-                    in_quotes = 0;
-                    *p = '\0';
+                    field[fpos++] = c;
+                }
+            } else {
+                if (c == parser->delimiter || c == '\n' || c == '\r') {
+                    break;
+                } else {
+                    field[fpos++] = c;
                 }
             }
-        } else if (!in_quotes) {
-            if (c == parser->delimiter) {
-                *p = '\0';
-                if (!ensure_capacity(&parser->current_row, parser->current_row.field_count + 1))
-                    return NULL;
-                parser->current_row.fields[parser->current_row.field_count++] = field_start;
-                field_start = p + 1;
-            } else if (c == '\n' || c == '\r') {
-                *p = '\0';
-                if (!ensure_capacity(&parser->current_row, parser->current_row.field_count + 1))
-                    return NULL;
-                parser->current_row.fields[parser->current_row.field_count++] = field_start;
-
-                if (c == '\r' && p + 1 < end && *(p + 1) == '\n') p++;
-                parser->pos = p - parser->data + 1;
-                return &parser->current_row;
-            }
+            pos++;
         }
-        p++;
+
+        field[fpos] = '\0';
+
+        parser->current_row.fields[parser->current_row.field_count++] = field;
+
+        if (pos < parser->size && parser->data[pos] == parser->delimiter) {
+            pos++;
+            continue;
+        } else {
+            break;
+        }
     }
 
-    // EOF: last field
-    if (field_start < end) {
-        char *field_end = end;
-        if (in_quotes && field_end > field_start && *(field_end - 1) == parser->quote) {
-            field_end--;
+    if (pos < parser->size && (parser->data[pos] == '\n' || parser->data[pos] == '\r')) {
+        if (parser->data[pos] == '\r' && pos + 1 < parser->size && parser->data[pos] + 1 == '\n') {
+            pos += 2;
+        } else {
+            pos++;
         }
-        *field_end = '\0';
-
-        if (!ensure_capacity(&parser->current_row, parser->current_row.field_count + 1))
-            return NULL;
-        parser->current_row.fields[parser->current_row.field_count++] = field_start;
     }
 
-    parser->pos = parser->size;
+    parser->pos = pos;
+
     return parser->current_row.field_count > 0 ? &parser->current_row : NULL;
 }
