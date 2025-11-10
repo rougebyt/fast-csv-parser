@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 
 # === CONFIG ===
-CSV_FILE = "sample.csv"  # Must exist in examples/
+CSV_FILE = "large_benchmark.csv"  # Must exist in examples/
 # Generate a large CSV if not exists
 ROWS = 1_000_000  # 1 million rows
 COLS = 5
@@ -40,19 +40,19 @@ def benchmark_python_csv(filepath: str):
 
 def benchmark_c_parser(filepath: str):
     print("Benchmarking fast-csv-parser (C)...")
-    binary = "../csvparse"  # From examples/ to root
+    binary = "../csvparse"
     if not os.path.exists(binary):
         print(f"Error: {binary} not found. Run 'make' first.")
         sys.exit(1)
     start = time.perf_counter()
-    result = os.system(f"{binary} {filepath} > /dev/null")
+    # Run without output
+    result = os.system(f"{binary} {filepath} > /dev/null 2>&1")
     if result != 0:
         print("C parser failed.")
         sys.exit(1)
     end = time.perf_counter()
     print(f"C: parsed in {(end - start):.3f}s")
     return end - start
-
 def main():
     csv_path = Path(__file__).parent / CSV_FILE
     if not csv_path.exists() or csv_path.stat().st_size < 10_000:

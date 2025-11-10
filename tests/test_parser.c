@@ -7,28 +7,15 @@
 
 // === Portable temp CSV creator ===
 char* create_temp_csv(const char *data, char *template) {
-    size_t len = strlen(template);
-    if (len < 6) return NULL;
-
-    // SAFELY overwrite last 6 chars with "XXXXXX"
-    memcpy(template + len - 6, "XXXXXX", 6);
-    template[len] = '\0';  // Ensure null termination
-
+    strcpy(template, "/tmp/csv.XXXXXX");
     int fd = mkstemp(template);
     if (fd == -1) return NULL;
 
     FILE *f = fdopen(fd, "w");
-    if (!f) {
-        close(fd);
-        unlink(template);
-        return NULL;
-    }
+    if (!f) { close(fd); unlink(template); return NULL; }
 
-    size_t data_len = strlen(data);
-    if (fwrite(data, 1, data_len, f) != data_len) {
-        fclose(f);
-        unlink(template);
-        return NULL;
+    if (fprintf(f, "%s", data) < 0) {
+        fclose(f); unlink(template); return NULL;
     }
 
     fclose(f);
@@ -39,7 +26,7 @@ void test_basic_parsing() {
     printf("Running: test_basic_parsing\n");
 
     const char *csv_data = "name,age,city\nMoibon,25,Addis\nAlice,30,NY\n";
-    char filename[] = "/tmp/csvtest.XXXXXX";  // Must be mutable
+    char filename[] = "/tmp/csv.XXXXXX";  // ← now safe
 
     char *path = create_temp_csv(csv_data, filename);
     if (!path) {
@@ -78,16 +65,13 @@ void test_basic_parsing() {
 
 void test_quoted_fields() {
     printf("Running: test_quoted_fields\n");
-
     const char *csv_data = "id,data\n1,\"hello, world\"\n2,\"\"\"quoted\"\"\"\n";
-    char filename[] = "/tmp/csvtest.XXXXXX";
-
+    char filename[] = "/tmp/csv.XXXXXX";
     char *path = create_temp_csv(csv_data, filename);
     if (!path) {
         printf("FAIL: create_temp_csv\n");
         exit(1);
     }
-
     CSVParser *parser = csv_parser_new(path, ',', '"');
     if (!parser) {
         unlink(path);
@@ -96,6 +80,7 @@ void test_quoted_fields() {
 
     csv_parser_next(parser);  // Skip header
 
+    // Test 1: quoted comma
     CSVRow *row = csv_parser_next(parser);
     if (!row || strcmp(row->fields[1], "hello, world") != 0) {
         printf("FAIL: quoted comma not preserved\n");
@@ -104,6 +89,7 @@ void test_quoted_fields() {
         exit(1);
     }
 
+    // Test 2: doubled quotes
     row = csv_parser_next(parser);
     if (!row || strcmp(row->fields[1], "\"quoted\"") != 0) {
         printf("FAIL: escaped quotes not preserved\n");
