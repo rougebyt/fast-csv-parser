@@ -16,6 +16,7 @@ $(TEST_TARGET): $(TEST_SRC)
 
 test: $(TEST_TARGET)
 	@echo "=== Running Unit Tests ==="
+	chmod +x ./$(TEST_TARGET)
 	@./$(TEST_TARGET)
 
 clean:
