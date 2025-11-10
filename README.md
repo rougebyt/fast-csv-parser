@@ -1,11 +1,9 @@
 
 <h1 align="center">fast-csv-parser</h1>
-
 <p align="center">
-  <strong>Blazing-fast CSV parser in C — 10× faster than Python</strong><br>
-  <i>Memory-mapped, zero-copy, SIMD-ready</i>
+  <strong>Fast CSV parser in C — 3–5× faster than Python</strong><br>
+  <i>Memory-mapped, zero-copy, lightweight</i>
 </p>
-
 <p align="center">
   <a href="#installation">Install</a> •
   <a href="#usage">Usage</a> •
@@ -13,10 +11,9 @@
   <a href="#platform-support">Platform</a> •
   <a href="#contributing">Contribute</a>
 </p>
-
 <p align="center">
   <img src="https://img.shields.io/badge/language-C-DC143C?logo=c&logoColor=white" />
-  <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS-blue" />
+  <img src="https://img.shields.io/badge/platform-Linux%20%7C%20WSL2-blue" />
   <img src="https://img.shields.io/badge/WSL2-Recommended-4B8BBE" />
   <img src="https://github.com/rougebyt/fast-csv-parser/actions/workflows/ci.yml/badge.svg" />
   <img src="https://img.shields.io/github/stars/rougebyt/fast-csv-parser?style=social" />
@@ -27,49 +24,54 @@
 ## Why This Exists
 
 Parsing large CSV files in Python is **slow** due to interpreter overhead.  
-`fast-csv-parser` uses **memory mapping (`mmap`)** and **zero-copy parsing** to read gigabytes of CSV in **milliseconds**.
+`fast-csv-parser` uses **memory mapping (`mmap`)** and **zero-copy parsing** to read millions of rows in **seconds**, not minutes.
 
-- **No dynamic allocation per field**  
-- **SIMD-ready** (future extensions)  
-- **Single header + source**  
-- **CLI + embeddable library**
+- No per-field allocation  
+- No Python overhead  
+- CLI + embeddable library  
+- Built for **Linux & WSL2**
 
 ---
 
 ## Features
 
-| Feature | Status |
-|-------|--------|
-| Memory-mapped I/O | Done |
+| Feature                     | Status  |
+|----------------------------|---------|
+| Memory-mapped I/O          | Done |
 | Zero-copy field extraction | Done |
-| Quoted fields, escaped quotes | Done |
-| Custom delimiter & quote char | Done |
-| CLI + embeddable library | Done |
-| Docker build | Done |
-| GitHub Actions CI | Under Development |
-| Unit tests | Done |
+| Custom delimiter & quote   | Done |
+| CLI + library              | Done |
+| Docker build               | Done |
+| GitHub Actions CI          | Done |
+| Unit tests                 | Done |
 
 ---
 
 ## Platform Support
 
-| OS | Status | Notes |
-|----|--------|-------|
-| **Linux** | Supported | Tested on Ubuntu 22.04 |
-| **macOS** | Supported | Tested on macOS 14 |
-| **Windows** | Not Supported | Use **WSL2** (see below) |
+| OS        | Status    | Notes |
+|-----------|-----------|-------|
+| **Linux** | Supported | Ubuntu 22.04+ |
+| **WSL2**  | Supported | Recommended for Windows |
+| **macOS** | Experimental | Not tested |
+| **Windows**| Not Supported | Use **WSL2** |
 
 > **Pro tip**: On Windows, use **WSL2** — full Linux environment, zero changes needed.
 
 ### Windows + WSL2 Setup
 
 ```bash
-# 1. Install WSL2
+# 1. Install WSL2 (run in PowerShell as Admin)
 wsl --install -d Ubuntu
 
 # 2. Open WSL terminal
 git clone https://github.com/rougebyt/fast-csv-parser.git
 cd fast-csv-parser
+
+# 3. Install dependencies
+sudo apt update && sudo apt install build-essential python3 python3-pip -y
+
+# 4. Build & run
 make
 ./csvparse examples/sample.csv
 ```
@@ -78,21 +80,34 @@ make
 
 ## Installation
 
-### From Source
+### Option 1: Direct (Linux / WSL2)
 
 ```bash
 git clone https://github.com/rougebyt/fast-csv-parser.git
 cd fast-csv-parser
+
+# Install dependencies
+sudo apt update
+sudo apt install build-essential python3 python3-pip -y
+
+# Build
 make
 ```
 
-Binary will be at `./csvparse`
+> Binary: `./csvparse`
 
-### Docker
+---
+
+### Option 2: Docker
 
 ```bash
-docker build -t csvparser .
-docker run --rm -v $(pwd)/examples:/data csvparser /data/sample.csv
+docker build -t fast-csv-parser .
+
+# Run tests
+docker run --rm fast-csv-parser make test
+
+# Run CLI with local file
+docker run --rm -v $(pwd)/examples:/data fast-csv-parser ./csvparse /data/sample.csv
 ```
 
 ---
@@ -111,24 +126,22 @@ docker run --rm -v $(pwd)/examples:/data csvparser /data/sample.csv
 # Custom quote
 ./csvparse data.csv --quote "'"
 
-# Print only specific columns
-./csvparse data.csv --columns 0,2,4
+# Print only specific columns (0-indexed)
+./csvparse data.csv --columns 0,2
 ```
 
 ### As Library
 
 ```c
-#include "csv_parser.h"
+#include "include/csv_parser.h"
 
 int main() {
     CSVParser *parser = csv_parser_new("examples/sample.csv", ',', '"');
     CSVRow *row;
-
     while ((row = csv_parser_next(parser)) != NULL) {
-        printf("Name: %s, Age: %s\n", 
-               csv_row_get(row, 0), csv_row_get(row, 1));
+        printf("Name: %s, Age: %s\n",
+               row->fields[0], row->fields[1]);
     }
-
     csv_parser_free(parser);
     return 0;
 }
@@ -142,14 +155,15 @@ int main() {
 $ make bench
 ```
 
-**1M rows × 5 cols (~87 MB CSV)**
+**1M rows × 5 cols (~57 MB CSV)**
 
-| Parser       | Time    | Speedup |
-|--------------|---------|---------|
-| Python `csv` | 8.72s   | 1.0×    |
-| **C Parser** | **0.89s** | **9.8×** |
+| Parser         | Time   | Speedup |
+|----------------|--------|---------|
+| Python `csv`   | 4.75s  | 1.0×    |
+| **C Parser**   | **1.70s** | **2.8×** |
 
-> Zero-copy + `mmap` = massive wins  
+> Realistic speedup under fair I/O conditions  
+> Zero-copy + `mmap` = still **massive memory savings**  
 > See [`examples/benchmark.py`](./examples/benchmark.py)
 
 ---
@@ -157,12 +171,12 @@ $ make bench
 ## Project Structure
 
 ```
-src/          → Core parser + CLI
-include/      → Header for library use
-examples/     → Sample data + benchmark
-tests/        → Unit tests
-Dockerfile    → Containerized build
-.github/      → CI/CD
+src/           → Core parser + CLI
+include/       → Header for library use
+examples/      → Sample data + benchmark
+tests/         → Unit tests
+Dockerfile     → Containerized build
+.github/       → CI/CD
 ```
 
 ---
@@ -170,9 +184,9 @@ Dockerfile    → Containerized build
 ## Contributing
 
 1. Fork it
-2. Create your feature branch (`git checkout -b feature/amazing`)
-3. Commit (`git commit -m 'Add amazing feature'`)
-4. Push (`git push origin feature/amazing`)
+2. Create your branch (`git checkout -b feature/fast`)
+3. Commit (`git commit -m 'Add SIMD support'`)
+4. Push (`git push origin feature/fast`)
 5. Open a Pull Request
 
 ---
@@ -181,7 +195,7 @@ Dockerfile    → Containerized build
 
 **Moibon Dereje**  
 - GitHub: [@rougebyt](https://github.com/rougebyt)  
-- X: [@rougebyt](https://x.com/rougebyt)  
+- X: [@rougeByt](https://x.com/rougeByt)  
 - Email: moibonthebest@gmail.com
 
 ---
@@ -197,5 +211,3 @@ MIT © Moibon Dereje
   <br><br>
   <i>Built with performance in mind.</i>
 </p>
-
-
