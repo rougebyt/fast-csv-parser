@@ -1,4 +1,6 @@
 csvparse
+test_parser
+examples/large_benchmark.csv
 *.o
 *.out
 __pycache__
